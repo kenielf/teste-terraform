@@ -1,0 +1,97 @@
+\documentclass{article}
+
+\usepackage{fancyvrb}
+\VerbatimFootnotes
+\usepackage{minted}
+\usepackage{indentfirst}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=magenta,
+    urlcolor=cyan,
+    pdftitle={NeoTasker - Documentação},
+    pdfpagemode=FullScreen,
+}
+\urlstyle{same}
+
+
+\begin{document}
+\tableofcontents
+\pagebreak
+
+\section{Configuração do Terraform para AWS}
+Terraform é uma ferramenta de \textbf{infraestrutura como código \textit{IaC}} para orquestrar diferentes componentes de infraestrutura, criando e destruindo recursos, e efetuando modificações quando necessário. Sua configuração é realizada a partir de arquivos com a extensão \Verb{tf}.
+
+Para o escopo definido no arquivo \Verb{main.tf} contido neste repositório, serão criados recursos para a \textbf{Amazon Web Services \textit{(AWS)}} para subir em nuvem uma infraestrutura com recursos de rede e segurança complementando o recurso de \textit{compute}.
+
+\subsection{Provedor}
+Localizado ao início do arquivo, a primeira seção define qual é o provedor -- um plugin utilizado para gerenciar os recursos que são declarados na configuração.
+\begin{minted}[autogobble]{terraform}
+    provider "aws" {
+      region = "us-east-1"
+    }
+\end{minted}
+
+O parâmetro \Verb{region} define em qual região serão criados os recursos, neste caso \Verb{us-east-1} se refere a região de \textbf{Virgínia do Norte, Estados Unidos}.
+
+\subsection{Variáveis}
+Logo abaixo, são definidos variáveis que serão reutilizadas em diferentes trechos da configuração.
+\begin{minted}[autogobble]{terraform}
+    variable "projeto" {
+      description = "Nome do projeto"
+      type        = string
+      default     = "VExpenses"
+    }
+
+    variable "candidato" {
+      description = "Nome do candidato"
+      type        = string
+      default     = "ChrystianFranklin"
+    }
+\end{minted}
+
+Ambas essas variáveis contém campos de descrição, tipo e valor padrão -- que podem ser sobrescritos por variáveis de ambiente, esses valores podem ser sobrescritos em diferentes módulos, ou por argumentos ao executável\footnote{
+    \Verb{terraform apply -var="candidato=OutroCandidato"}
+}, ou por variáveis de ambiente\footnote{
+    \Verb{TF_VAR_candidato="OutroCandidato" terraform apply}
+}, ou até mesmo por um \href{https://developer.hashicorp.com/terraform/language/values/variables\#variable-definitions-tfvars-files}{arquivo dedicado de variáveis}.
+
+Apesar de não estar incluso nesse trecho, as variáveis podem conter configuração de validação a partir de condições, podendo verificar diferentes aspectos, como por exemplo o tamanho mínimo e máximo de uma variável e prefixação, e quando não são atendidas, uma mensagem de erro pode ser exibida a partir do parâmetro de \Verb{error_message}.
+
+\subsection{Recursos}
+\subsubsection{Par de Chaves TLS}
+Nessa seção são criadas dois recursos principais, uma chave privada de TLS e um par de chaves da AWS (a partir da chave TLS), que serão usadas para acessar a instância EC2 que será criada.
+\begin{minted}[autogobble]{terraform}
+    resource "tls_private_key" "ec2_key" {
+      algorithm = "RSA"
+      rsa_bits  = 2048
+    }
+\end{minted}
+
+O algorítmo utilizado para a criação da chave é o RSA com tamanho de 2048 bits, considerado seguro\footnote{
+    Uma implementação segura de RSA requer \textit{blinding} para evitar \href{https://www.cs.sjsu.edu/faculty/stamp/students/article.html}{ataques de timing}.
+} e utilizado por várias plataformas como tipo de chave principal.
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_key_pair" "ec2_key_pair" {
+      key_name   = "${var.projeto}-${var.candidato}-key"
+      public_key = tls_private_key.ec2_key.public_key_openssh
+    }
+\end{minted}
+
+Esse trecho cria o par de chave na AWS utilizando as variáveis de \textbf{projeto} e \textbf{candidato}, a partir da chave pública gerada no trecho anterior, com o formato do OpenSSH.
+
+\subsubsection{Virtual Private Cloud (VPC)}
+\subsubsection{Subnet}
+\subsubsection{Gateway}
+\subsubsection{Route Table \& Associations}
+\subsubsection{Security Group (SSH)}
+\subsubsection{Amazon Machine Image (AMI)}
+\subsubsection{Elastic Compute Cloud (EC2)}
+\subsection{Outputs}
+\subsubsection{Chave de Acesso Privada}
+\subsubsection{Endereço IP Público}
+
+
+\end{document}

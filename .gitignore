@@ -3,6 +3,8 @@
 
 # Latex Files
 _minted*/
+*.out
+*.toc
 *.aux
 *.log
 *.pdf
