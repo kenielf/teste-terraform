@@ -1,0 +1,8 @@
+# Terraform Files
+/.terraform/
+
+# Latex Files
+_minted*/
+*.aux
+*.log
+*.pdf
