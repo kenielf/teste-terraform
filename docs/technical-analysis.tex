@@ -14,6 +14,13 @@
     pdfpagemode=FullScreen,
 }
 \urlstyle{same}
+\usepackage{titlesec}
+\setcounter{secnumdepth}{4} % Use paragraphs as another added depth
+\titleformat{\paragraph}
+{\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
+\titlespacing*{\paragraph}
+{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
 
 
 \begin{document}
@@ -83,15 +90,152 @@ O algorítmo utilizado para a criação da chave é o RSA com tamanho de 2048 bi
 Esse trecho cria o par de chave na AWS utilizando as variáveis de \textbf{projeto} e \textbf{candidato}, a partir da chave pública gerada no trecho anterior, com o formato do OpenSSH.
 
 \subsubsection{Virtual Private Cloud (VPC)}
+Essa seção define uma camada essencial para controlar configurações de rede para os recursos, e será a base para definir a subnet, gateway, tabela de rotas, e grupos de segurança.
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_vpc" "main_vpc" {
+      cidr_block           = "10.0.0.0/16"
+      enable_dns_support   = true
+      enable_dns_hostnames = true
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-vpc"
+      }
+    }
+\end{minted}
+
+A definição do intervalo de endereços é definido usando o padrão CIDR com máscara de 16 bits, permitindo que endereços sejam definidos a partir de 10.0.0.0 até 10.255.255.255 \textit{(RFC 1918)}.
+
+A configuração da VPC é realizada de uma maneira que a resolução de \textit{domain name system (DNS)} seja permitida, facilitando a comunicação de recursos dentro da VPC com o uso de \textit{hostnames} -- nesse caso os nomes das instâncias que serão inicializadas.
+
 \subsubsection{Subnet}
+Uma sub-rede é uma divisão lógica de uma rede, dentro do contexto da AWS é utilizada para dividir uma VPC em seções menores e para agrupar recursos.
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_subnet" "main_subnet" {
+      vpc_id            = aws_vpc.main_vpc.id
+      cidr_block        = "10.0.1.0/24"
+      availability_zone = "us-east-1a"
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-subnet"
+      }
+    }
+\end{minted}
+
+A criação do recurso de sub-rede depende do identificador da VPC anterior, que é obtido a partir do \Verb{aws_vpc.main_vpc.id}.
+
+O seu intervalo é definido com uma máscara de 24 bits, e faz com que os endereços comecem em 10.0.1.0 até 10.0.1.255, permitindo que 254 endereços sejam utilizados para os hosts \textit{excluindo os endereços de rede e de transmissão}.
+
+Sua zona de disponibilidade é definida a partir da região do provedor, nesse caso \Verb{us-east-1a}, e define comportamentos como disponibilidade e resiliência à falhas.
+
 \subsubsection{Gateway}
+Um gateway é um recurso gratuito da AWS\footnote{
+    Apesar de que instâncias que se comunicam com a internet \href{https://aws.amazon.com/ec2/pricing/on-demand/}{incorrem com custos de transferências}
+} que permite a comunição entre as instâncias criadas no VPC e a internet, dado a existência de um endereço de IP público das instâncias, definindo um target na tabela de rotas da VPC.
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_internet_gateway" "main_igw" {
+      vpc_id = aws_vpc.main_vpc.id
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-igw"
+      }
+    }
+\end{minted}
+
+Da mesma maneira como feito na sub-rede, a criação do gateway também depende do identificador da VPC.
+
 \subsubsection{Route Table \& Associations}
+A tabela de rotas define as regras de rotas de uma determinada VPC e é usada para determinar o fluxo dos dados em tráfego.
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_route_table" "main_route_table" {
+      vpc_id = aws_vpc.main_vpc.id
+
+      route {
+        cidr_block = "0.0.0.0/0"
+        gateway_id = aws_internet_gateway.main_igw.id
+      }
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-route_table"
+      }
+    }
+\end{minted}
+
+Novamente, por ser um recurso englobado por VPC, a configuração requer o definição desse identificador.
+
+O intervalo de endereços contido indica que todo o tráfego outbound\footnote{
+    Tráfego inbound é definido por grupos de segurança e ACLs.
+} \textit{(representado pelo bloco CIDR de 0.0.0.0/0)} será redirecionado pelo gateway definido anteriormente. 
+
+\begin{minted}[autogobble]{terraform}
+    resource "aws_route_table_association" "main_association" {
+      subnet_id      = aws_subnet.main_subnet.id
+      route_table_id = aws_route_table.main_route_table.id
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-route_table_association"
+      }
+    }
+\end{minted}
+
+Define a associação entre a sub-rede e a tabela de rotas, utilizando como configuração os identificadores de ambos. Permitindo com que a sub-rede use as regras de roteamento da tabela. Sendo assim, mais um aspecto do controle de tráfego.
+
+Como o gateway utilizado é um \textit{internet gateway}, que expõe o tráfego à internet, a sub-rede principal na qual é ligada pode se comunicar com a internet, requerendo assim a configuração de um grupo de segurança para limitar o acesso aos recursos.
+
 \subsubsection{Security Group (SSH)}
+O grupo de segurança age como uma firewall virtual para efetuar o controle de tráfego inbound e outbound dos recursos a partir de agrupamentos. 
+\begin{minted}[autogobble]{terraform}
+    resource "aws_security_group" "main_sg" {
+      name        = "${var.projeto}-${var.candidato}-sg"
+      description = "Permitir SSH de qualquer lugar e todo o tráfego de saída"
+      vpc_id      = aws_vpc.main_vpc.id
+
+      # Regras de entrada
+      ingress {
+        description      = "Allow SSH from anywhere"
+        from_port        = 22
+        to_port          = 22
+        protocol         = "tcp"
+        cidr_blocks      = ["0.0.0.0/0"]
+        ipv6_cidr_blocks = ["::/0"]
+      }
+
+      # Regras de saída
+      egress {
+        description      = "Allow all outbound traffic"
+        from_port        = 0
+        to_port          = 0
+        protocol         = "-1"
+        cidr_blocks      = ["0.0.0.0/0"]
+        ipv6_cidr_blocks = ["::/0"]
+      }
+
+      tags = {
+        Name = "${var.projeto}-${var.candidato}-sg"
+      }
+}
+\end{minted}
+
+Sua configuração também requer a definição do identificador da VPC para associar as regras do grupo à VPC.
+
+\paragraph{Regras de Entrada}
+A configuração de regras de entradas é realizada pelo bloco de \Verb{ingress}, configurando o acesso por SSH a partir da porta 22, permitindo o acesso a partir de qualquer endereço de IPv4 e IPv6 \textit{(considerado arriscado)}.
+
+\paragraph{Regras de Saída}
+A configuração das regras de saída é realizada pelo bloco de \Verb{egress}, configurando que para quaisquer tráfego outbound \textit{(todas as portas)}, e todos os protocolos \textit{("-1")}, para quaisquer destino IPv4 e IPv6.
+
 \subsubsection{Amazon Machine Image (AMI)}
 \subsubsection{Elastic Compute Cloud (EC2)}
 \subsection{Outputs}
 \subsubsection{Chave de Acesso Privada}
 \subsubsection{Endereço IP Público}
 
+\section{Considerações Adicionais}
+\subsection{Uso de Tags}
+A definição das tags nos recursos criados auxilia na organização e identificação dos mesmos, permitindo que esses possam ser buscados no console da AWS, atentando-se ao controle de gastos por esses recursos.
 
+Além da documentação e monitoramento, o uso de tags permite que certas automações sejam implementadas com mais facilidade, como verificação de conformidade à políticas e a integração de scripts de automação.
 \end{document}
