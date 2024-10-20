@@ -228,12 +228,96 @@ A configuração de regras de entradas é realizada pelo bloco de \Verb{ingress}
 A configuração das regras de saída é realizada pelo bloco de \Verb{egress}, configurando que para quaisquer tráfego outbound \textit{(todas as portas)}, e todos os protocolos \textit{("-1")}, para quaisquer destino IPv4 e IPv6.
 
 \subsubsection{Amazon Machine Image (AMI)}
+AMI é um serviço disponibilizado pela AWS para a construção de imagens EC2, contendo o software necessário para configurar e inicializar uma instância, contendo também o mapeamento de \textit{block devices} ligados à instância.
+
+\begin{minted}[autogobble]{terraform}
+    data "aws_ami" "debian12" {
+      most_recent = true
+
+      filter {
+        name   = "name"
+        values = ["debian-12-amd64-*"]
+      }
+
+      filter {
+        name   = "virtualization-type"
+        values = ["hvm"]
+      }
+
+      owners = ["679593333241"]
+    }
+\end{minted}
+
+Utilizando o \Verb{most_recent = true} para retornar a imagem mais recente encontrada, a partir do filtro de nome \Verb{"debian-12-amd64-*"} para buscar uma imagem de Debian 12 x86\_64, com o filtro de tipo de virtualização indicando que a imagem deve ser a virtualização de \textit{Hardware Virtual Machine (HVM)}
+
+O parâmetro de \Verb{owners} restringe a pesquisa para buscar AMIs contidos nas contas correspondentes aos IDs passados.
+
+Essa configuração visa garantir que as instâncias criadas a partir desse AMI estejam atualizadas, já que não restringe por ID de AMI e sim por uma consulta.
+
 \subsubsection{Elastic Compute Cloud (EC2)}
+Esse serviço da AWS é responsável pelo gerenciamento e disponibilização de capacidade computacional escalável por demanda, e é o componente principal para subir uma aplicação em núvem, já que o software executado será contido em uma instância EC2\footnote{
+    A AWS disponibiliza outros serviços que permitem a execução de funções e softwares conteinerizados, porém foge do escopo desse repositório.
+}.
+\begin{minted}[autogobble]{terraform}
+    resource "aws_instance" "debian_ec2" {
+      ami             = data.aws_ami.debian12.id
+      instance_type   = "t2.micro"
+      subnet_id       = aws_subnet.main_subnet.id
+      key_name        = aws_key_pair.ec2_key_pair.key_name
+      security_groups = [aws_security_group.main_sg.name]
+
+      associate_public_ip_address = true
+
+      root_block_device {
+        volume_size           = 20
+        volume_type           = "gp2"
+        delete_on_termination = true
+      }
+
+      user_data = <<-EOF
+                  #!/bin/bash
+                  apt-get update -y
+                  apt-get upgrade -y
+                  EOF
+
+      tags = {
+    Name = "${var.projeto}-${var.candidato}-ec2"
+  }
+}
+\end{minted}
+
+Utilizando o AMI encontrado anteriormente, é definido o tipo de instância como \Verb{"t2.micro"} -- disponível no Free Tier da AWS -- e configura os parâmetros definidos anteriormente à instância: a sub-rede, o par de chaves e o grupo de segurança.
+
+Definindo também que a instância deve possuir um endereço público, acessível pela internet, e criando um \textit{block device} de 20 gibibytes, com tipo de \textit{"general purpose ssd" (GP2)} e configurando para ser removidos quando a instância é terminada.
+
+O trecho de \Verb{"user_data"} é um shell script executado na inicialização da instância, e define as etapas de configurações iniciais, nesse caso atualizando o sistema.
+
 \subsection{Outputs}
+A seção de \textit{outputs} define o conteúdo que deve ser disponibilizado após a criação da infraestrutura.
+
 \subsubsection{Chave de Acesso Privada}
+\begin{minted}[autogobble]{terraform}
+    output "private_key" {
+      description = "Chave privada para acessar a instância EC2"
+      value       = tls_private_key.ec2_key.private_key_pem
+      sensitive   = true
+    }
+\end{minted}
+Exibindo a chave privada em formato PEM, com o parâmetro \Verb{sensitive = "true"} garantindo que o recurso não seja exibido ou armazenado em logs ou output do console.
+
 \subsubsection{Endereço IP Público}
+\begin{minted}[autogobble]{terraform}
+    output "ec2_public_ip" {
+      description = "Endereço IP público da instância EC2"
+      value       = aws_instance.debian_ec2.public_ip
+    }
+\end{minted}
+Exibe o endereço de IP público da instância criada anteriormente, facilitando o acesso ao recurso.
 
 \section{Considerações Adicionais}
+\subsection{Nomenclatura de Recursos}
+Todos os recursos criados tem característicamente nomes identificáveis, facilitando a organização e o acesso dos parâmetros internos de cada um.
+
 \subsection{Uso de Tags}
 A definição das tags nos recursos criados auxilia na organização e identificação dos mesmos, permitindo que esses possam ser buscados no console da AWS, atentando-se ao controle de gastos por esses recursos.
 
