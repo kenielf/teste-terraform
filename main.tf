@@ -226,13 +226,7 @@ resource "aws_instance" "debian_ec2" {
     delete_on_termination = true
   }
 
-  user_data = <<-EOF
-              #!/bin/bash
-              apt-get update -y
-              apt-get upgrade -y
-              apt-get install nginx -y
-              systemctl enable --now nginx
-              EOF
+  user_data = file("./scripts/ec2-setup.sh")
 
   tags = {
     Name = "${var.projeto}-${var.candidato}-ec2"
