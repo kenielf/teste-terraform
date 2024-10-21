@@ -16,7 +16,7 @@ variable "candidato" {
 
 resource "tls_private_key" "ec2_key" {
   algorithm = "RSA"
-  rsa_bits  = 2048
+  rsa_bits  = 4096
 }
 
 resource "aws_key_pair" "ec2_key_pair" {
@@ -156,4 +156,3 @@ output "ec2_public_ip" {
   description = "Endereço IP público da instância EC2"
   value       = aws_instance.debian_ec2.public_ip
 }
-
