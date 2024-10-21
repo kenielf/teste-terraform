@@ -141,6 +141,9 @@ resource "aws_iam_role_policy_attachment" "attach_policy" {
 \subsubsection{Habilitar Logs da VPC}
 É possível armazenar o tráfego da VPC usando um bucket S3, cargo e política IAM, e VPC Flow Log. Essa configuração foi aplicada e se encontra na configuração atual.
 
+\subsubsection{Instalação do Fail2Ban}
+Fail2Ban é uma aplicação que regula o acesso, e garante maior segurança em relação ao acesso do EC2 com SSH. Essa configuração foi aplicada e está localizada no script de inicialização do EC2 contido no repositório.
+
 \subsection{Nginx}
 A instalação do nginx foi feita a partir da abertura das portas HTTP e HTTPS, e da extensão do script de inicialização para instalar pelo apt, configurar e habilitar por default.
 
@@ -151,9 +154,6 @@ A instalação do nginx foi feita a partir da abertura das portas HTTP e HTTPS, 
     apt-get install nginx -y
     systemctl enable --now nginx
 \end{minted}
-
-\subsubsection{Instalação do Fail2Ban}
-Fail2Ban é uma aplicação que regula o acesso, e garante maior segurança em relação ao acesso do EC2 com SSH. Essa configuração foi aplicada e está localizada no script de inicialização do EC2 contido no repositório.
 
 \subsection{Organização}
 \subsubsection{Segmentação Da Configuração}
