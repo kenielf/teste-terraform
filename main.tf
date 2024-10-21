@@ -4,16 +4,8 @@ provider "aws" {
 }
 
 # -- Common variables --
-variable "projeto" {
-  description = "Nome do projeto"
-  type        = string
-  default     = "VExpenses"
-}
-
-variable "candidato" {
-  description = "Nome do candidato"
-  type        = string
-  default     = "ChrystianFranklin"
+module "variables" {
+    source = "./modules/variables"
 }
 
 # -- Networking --
@@ -24,7 +16,7 @@ resource "aws_vpc" "main_vpc" {
   enable_dns_hostnames = true
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-vpc"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-vpc"
   }
 }
 
@@ -106,7 +98,7 @@ resource "aws_subnet" "main_subnet" {
   availability_zone = "us-east-1a"
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-subnet"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-subnet"
   }
 }
 
@@ -115,7 +107,7 @@ resource "aws_internet_gateway" "main_igw" {
   vpc_id = aws_vpc.main_vpc.id
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-igw"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-igw"
   }
 }
 
@@ -129,7 +121,7 @@ resource "aws_route_table" "main_route_table" {
   }
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-route_table"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-route_table"
   }
 }
 
@@ -145,13 +137,13 @@ resource "tls_private_key" "ec2_key" {
 }
 
 resource "aws_key_pair" "ec2_key_pair" {
-  key_name   = "${var.projeto}-${var.candidato}-key"
+  key_name   = "${module.variables.projeto}-${module.variables.candidato}-key"
   public_key = tls_private_key.ec2_key.public_key_openssh
 }
 
 # -- Security Group --
 resource "aws_security_group" "main_sg" {
-  name        = "${var.projeto}-${var.candidato}-sg"
+  name        = "${module.variables.projeto}-${module.variables.candidato}-sg"
   description = "Permitir SSH somente de endereços autorizados"
   vpc_id      = aws_vpc.main_vpc.id
 
@@ -194,7 +186,7 @@ resource "aws_security_group" "main_sg" {
   }
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-sg"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-sg"
   }
 }
 
@@ -234,7 +226,7 @@ resource "aws_instance" "debian_ec2" {
   user_data = file("./scripts/ec2-setup.sh")
 
   tags = {
-    Name = "${var.projeto}-${var.candidato}-ec2"
+    Name = "${module.variables.projeto}-${module.variables.candidato}-ec2"
   }
 }
 
