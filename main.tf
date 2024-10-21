@@ -16,14 +16,10 @@ module "networking" {
 }
 
 # -- Keys --
-resource "tls_private_key" "ec2_key" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
-}
-
-resource "aws_key_pair" "ec2_key_pair" {
-  key_name   = "${module.variables.projeto}-${module.variables.candidato}-key"
-  public_key = tls_private_key.ec2_key.public_key_openssh
+module "keys" {
+    source  = "./modules/keys"
+    projeto = module.variables.projeto
+    candidato = module.variables.candidato
 }
 
 # -- Security Group --
@@ -97,7 +93,7 @@ resource "aws_instance" "debian_ec2" {
   ami             = data.aws_ami.debian12.id
   instance_type   = "t2.micro"
   subnet_id       = module.networking.main_subnet.id
-  key_name        = aws_key_pair.ec2_key_pair.key_name
+  key_name        = module.keys.ec2_key_pair.key_name
   security_groups = [aws_security_group.main_sg.name]
 
   associate_public_ip_address = true
@@ -118,7 +114,7 @@ resource "aws_instance" "debian_ec2" {
 # --- Outputs ---
 output "private_key" {
   description = "Chave privada para acessar a instância EC2"
-  value       = tls_private_key.ec2_key.private_key_pem
+  value       = module.keys.ec2_key.private_key_pem
   sensitive   = true
 }
 
