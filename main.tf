@@ -17,6 +17,7 @@ variable "candidato" {
 }
 
 # -- Networking --
+# VPC
 resource "aws_vpc" "main_vpc" {
   cidr_block           = "10.0.0.0/16"
   enable_dns_support   = true
@@ -27,6 +28,7 @@ resource "aws_vpc" "main_vpc" {
   }
 }
 
+# VPC: Logs
 resource "aws_s3_bucket" "vpc_logs_bucket" {
   bucket = "vpc_logs_bucket"
 
@@ -97,6 +99,7 @@ resource "aws_flow_log" "vpc_logs" {
   iam_role_arn            = aws_iam_role.vpc_logs_role.arn
 }
 
+# Subnet
 resource "aws_subnet" "main_subnet" {
   vpc_id            = aws_vpc.main_vpc.id
   cidr_block        = "10.0.1.0/24"
@@ -107,6 +110,7 @@ resource "aws_subnet" "main_subnet" {
   }
 }
 
+# Internet Gateway
 resource "aws_internet_gateway" "main_igw" {
   vpc_id = aws_vpc.main_vpc.id
 
@@ -115,6 +119,7 @@ resource "aws_internet_gateway" "main_igw" {
   }
 }
 
+# Route Table
 resource "aws_route_table" "main_route_table" {
   vpc_id = aws_vpc.main_vpc.id
 
