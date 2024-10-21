@@ -68,10 +68,6 @@ resource "aws_route_table" "main_route_table" {
 resource "aws_route_table_association" "main_association" {
   subnet_id      = aws_subnet.main_subnet.id
   route_table_id = aws_route_table.main_route_table.id
-
-  tags = {
-    Name = "${var.projeto}-${var.candidato}-route_table_association"
-  }
 }
 
 resource "aws_security_group" "main_sg" {
@@ -85,7 +81,7 @@ resource "aws_security_group" "main_sg" {
     from_port        = 22
     to_port          = 22
     protocol         = "tcp"
-    cidr_blocks      = ["8.8.8.8/32"]  # IP da Google como exemplo somente.
+    cidr_blocks      = ["8.8.8.8/32"] # IP da Google como exemplo somente.
     ipv6_cidr_blocks = []
   }
 
@@ -111,6 +107,76 @@ resource "aws_security_group" "main_sg" {
   tags = {
     Name = "${var.projeto}-${var.candidato}-sg"
   }
+}
+
+resource "aws_s3_bucket" "vpc_logs_bucket" {
+  bucket = "vpc_logs_bucket"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = "VPC Flow Logs Bucket"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "vpc_logs_versioning" {
+  bucket = aws_s3_bucket.vpc_logs_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_iam_role" "vpc_logs_role" {
+  name = "vpc_logs_role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action    = "sts:AssumeRole"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+        Effect    = "Allow"
+        Sid       = ""
+      }
+    ]
+  })
+}
+
+resource "aws_iam_policy" "vpc_logs_policy" {
+  name        = "vpc_logs_policy"
+  description = "Policy to allow VPC Flow Logs to write to S3 bucket"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:PutObjectAcl"
+        ]
+        Resource = "${aws_s3_bucket.vpc_logs_bucket.arn}/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_policy" {
+  role       = aws_iam_role.vpc_logs_role.name
+  policy_arn = aws_iam_policy.vpc_logs_policy.arn
+}
+
+resource "aws_flow_log" "vpc_logs" {
+  vpc_id                  = aws_vpc.main_vpc.id
+  traffic_type            = "ALL"
+  log_destination         = aws_s3_bucket.vpc_logs_bucket.arn
+  log_destination_type    = "s3"
+  iam_role_arn            = aws_iam_role.vpc_logs_role.arn
 }
 
 data "aws_ami" "debian12" {
