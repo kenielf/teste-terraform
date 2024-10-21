@@ -10,3 +10,5 @@ lualatex --shell-escape ./*.tex && \
     lualatex --shell-escape ./*.tex
 
 # Clean temporary files
+rm -rfv ./_minted*
+rm -rfv ./*.aux ./*.log ./*.out ./*.toc
